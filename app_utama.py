@@ -13,6 +13,7 @@ import torch.nn as nn
 from torchvision.models import efficientnet_b0, resnet50
 from torchvision import transforms
 from mtcnn import MTCNN
+from huggingface_hub import hf_hub_download
 
 # ==========================================
 # 0. PENGATURAN SISTEM & LABEL
@@ -83,54 +84,46 @@ class PyTorchANFIS(nn.Module):
         return torch.sigmoid(out_crisp)
 
 # ==========================================
-# 2. INISIALISASI & MUAT SELURUH MODEL
+# 2. INISIALISASI & MUAT MODEL VIA HF (PUBLIC)
 # ==========================================
 print("🔄 Memuat Detektor Wajah (MTCNN)...")
 face_detector = MTCNN()
 
-print("🔄 Memuat Model Wajah (EfficientNet-B0)...")
-face_extractor = efficientnet_b0(weights=None)
-face_extractor.classifier = nn.Sequential(
-    nn.Dropout(p=0.2, inplace=True), 
-    nn.Linear(1280, 7)
-)
-path_face = os.path.join(MODEL_DIR, "efficientnet_b0_fer2013_best_weights (1).pth")
-if os.path.exists(path_face):
-    face_extractor.load_state_dict(torch.load(path_face, map_location=device))
-    print("✅ Sukses memuat bobot Face Branch.")
-face_extractor.classifier = nn.Sequential(
-    nn.Dropout(p=0.2, inplace=True), 
-    nn.Linear(1280, 256)
-)
+print("🔄 Mengunduh & Memuat Model dari Hugging Face (Public)...")
 
+# Helper: Download dari Hugging Face
+def get_model_path(repo_id, filename):
+    return hf_hub_download(repo_id=repo_id, filename=filename)
+
+# A. Face Branch
+face_extractor = efficientnet_b0(weights=None)
+face_extractor.classifier = nn.Sequential(nn.Dropout(p=0.2, inplace=True), nn.Linear(1280, 7))
+path_face = get_model_path("bun1110/efficientnet-fer2013", "efficientnet_b0_fer2013_best_weights (1).pth")
+face_extractor.load_state_dict(torch.load(path_face, map_location=device))
+face_extractor.classifier = nn.Sequential(nn.Dropout(p=0.2, inplace=True), nn.Linear(1280, 256))
 face_extractor.to(device).eval()
 
-print("🔄 Memuat Model Suasana (ResNet-50)...")
+# B. Scene Branch
 base_resnet = resnet50(weights=None)
 base_resnet.fc = nn.Sequential(nn.Linear(2048, 256), nn.ReLU(), nn.Dropout(0.4), nn.Linear(256, 4))
 scene_extractor = ResNet256Extractor(base_resnet)
-path_scene = os.path.join(MODEL_DIR, "resnet50_scene_biro_256d.pth")
-if os.path.exists(path_scene):
-    scene_extractor.load_state_dict(torch.load(path_scene, map_location=device))
-    print("✅ Sukses memuat bobot Scene Branch.")
+path_scene = get_model_path("bun1110/resnet-emoset", "resnet50_scene_biro_256d.pth")
+scene_extractor.load_state_dict(torch.load(path_scene, map_location=device))
 scene_extractor.to(device).eval()
 
-print("🔄 Memuat Modul Jaringan Saraf (ANN)...")
+# C. ANN
 ann_model = DualBranchANN().to(device)
-path_ann = os.path.join(MODEL_DIR, "modul_ann_terbaik.pth")
-if os.path.exists(path_ann):
-    ann_model.load_state_dict(torch.load(path_ann, map_location=device))
-    print("✅ Sukses memuat bobot Modul ANN.")
+path_ann = get_model_path("bun1110/modul-ann", "modul_ann_terbaik.pth")
+ann_model.load_state_dict(torch.load(path_ann, map_location=device))
 ann_model.eval()
 
-print("🔄 Memuat Modul Logika Fuzzy (ANFIS 6-Input)...")
+# D. ANFIS
 anfis_model = PyTorchANFIS(num_inputs=6).to(device)
-path_anfis = os.path.join(MODEL_DIR, "modul_anfis_terbaik.pth")
-if os.path.exists(path_anfis):
-    anfis_model.load_state_dict(torch.load(path_anfis, map_location=device))
-    print("✅ Sukses memuat bobot Modul ANFIS.")
+path_anfis = get_model_path("bun1110/modul-anfis", "modul_anfis_terbaik.pth")
+anfis_model.load_state_dict(torch.load(path_anfis, map_location=device))
 anfis_model.eval()
 
+# ✅ BAGIAN YANG HILANG DITAMBAHKAN KEMBALI DI SINI
 # Standarisasi Gambar
 transform_img = transforms.Compose([
     transforms.Resize((224, 224)),

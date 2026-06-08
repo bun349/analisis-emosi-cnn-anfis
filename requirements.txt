@@ -8,3 +8,4 @@ Pillow
 pandas
 mtcnn
 plotly
+huggingface_hub
