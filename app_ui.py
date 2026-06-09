@@ -315,7 +315,7 @@ def save_uploaded_file(uploaded_file):
 # ==========================================
 st.markdown("""
 <div class="hero-block">
-    <div class="hero-title">Affective Image Classification System<br>Based on Dual-Branch CNN & ANFIS Architecture</div>
+    <div class="hero-title">Emotion Intensity Analysis<br>Based on Dual-Branch CNN & ANFIS Architecture</div>
     <div class="hero-subtitle">
         An AI decision transparency audit platform for digital image emotion analysis.
         Integrates convolutional neural networks with adaptive Neuro-Fuzzy inference
