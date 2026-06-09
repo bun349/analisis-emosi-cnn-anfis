@@ -1,7 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-Streamlit Web Interface: XAI-Based Affective Image Classification System
-Dual-Branch CNN & 6-Input ANFIS — Professional Redesign
+Streamlit Web Interface: Emotion Intensity Analysis in Instagram Images: A Dual-Branch CNN and ANFIS Approach
 """
 
 import streamlit as st
