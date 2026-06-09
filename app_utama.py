@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """
 Aplikasi Utama: Analisis Intensitas Emosi Instagram
-(Integrasi MTCNN, Dual-Branch CNN, ANN, & ANFIS 6-Input + Dukungan XAI)
+(Integrasi MTCNN PyTorch, Dual-Branch CNN, ANN, & ANFIS 6-Input + Dukungan XAI)
 """
 
 import os
@@ -12,7 +12,7 @@ import torch
 import torch.nn as nn
 from torchvision.models import efficientnet_b0, resnet50
 from torchvision import transforms
-from mtcnn import MTCNN
+from facenet_pytorch import MTCNN  # <- Perubahan: Menggunakan versi PyTorch
 from huggingface_hub import hf_hub_download
 
 # ==========================================
@@ -86,8 +86,9 @@ class PyTorchANFIS(nn.Module):
 # ==========================================
 # 2. INISIALISASI & MUAT MODEL VIA HF (PUBLIC)
 # ==========================================
-print("🔄 Memuat Detektor Wajah (MTCNN)...")
-face_detector = MTCNN()
+print("🔄 Memuat Detektor Wajah (MTCNN PyTorch)...")
+# <- Perubahan: Menambahkan properti inisialisasi MTCNN facenet-pytorch
+face_detector = MTCNN(keep_all=True, device=device)
 
 print("🔄 Mengunduh & Memuat Model dari Hugging Face (Public)...")
 
@@ -123,7 +124,6 @@ path_anfis = get_model_path("bun1110/modul-anfis", "modul_anfis_terbaik.pth")
 anfis_model.load_state_dict(torch.load(path_anfis, map_location=device))
 anfis_model.eval()
 
-# ✅ BAGIAN YANG HILANG DITAMBAHKAN KEMBALI DI SINI
 # Standarisasi Gambar
 transform_img = transforms.Compose([
     transforms.Resize((224, 224)),
@@ -154,14 +154,27 @@ def analyze_single_image(image_path):
     img_resized = cv2.resize(img_rgb, (224, 224))
     
     # 1. Ekstraksi Wajah (256d)
-    hasil_deteksi = face_detector.detect_faces(img_rgb)
-    if len(hasil_deteksi) > 0:
+    # <- Perubahan: Logika deteksi box baru
+    boxes, probs = face_detector.detect(img_rgb)
+    
+    if boxes is not None and len(boxes) > 0:
         print("🧑 Wajah Terdeteksi! Memproses ekspresi...")
-        x, y, w, h = hasil_deteksi[0]['box']
-        face_crop = img_rgb[max(0, y):y+h, max(0, x):x+w]
-        face_tensor = transform_img(Image.fromarray(face_crop)).unsqueeze(0).to(device)
-        with torch.no_grad():
-            face_feat = face_extractor(face_tensor)
+        # Ambil wajah pertama (indeks 0) dan pastikan koordinatnya integer
+        x1, y1, x2, y2 = [int(b) for b in boxes[0]]
+        
+        # Pengaman batas agar tidak error kalau box melebihi ukuran gambar
+        x1, y1 = max(0, x1), max(0, y1)
+        x2, y2 = min(img_rgb.shape[1], x2), min(img_rgb.shape[0], y2)
+        
+        face_crop = img_rgb[y1:y2, x1:x2]
+        
+        # Cek jika ukuran crop tidak valid (misal wajah di ujung tepian)
+        if face_crop.size == 0:
+            face_feat = torch.zeros((1, 256)).to(device)
+        else:
+            face_tensor = transform_img(Image.fromarray(face_crop)).unsqueeze(0).to(device)
+            with torch.no_grad():
+                face_feat = face_extractor(face_tensor)
     else:
         print("🏞️ Wajah Tidak Terdeteksi. Menggunakan Zero-Padding.")
         face_feat = torch.zeros((1, 256)).to(device)
